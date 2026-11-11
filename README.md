@@ -117,7 +117,7 @@ npm audit
 
 Tests cover B35/B15 limits, AP and boundary values, international overrides, Japan-only exclusion, exact sequential gain projections, malformed inputs, profile isolation, persistence, import failure, search, responsive layout, and truthful fallback mode. CI runs these checks on pushes and pull requests. BYOK tests run the real LangChain integration against deterministic SDK transport fixtures for standard and strict output, key/endpoint isolation, error redaction, and fallback. Browser tests verify custom settings, key forgetting, and exclusion from storage/exports. A live transport check with an intentionally invalid OpenAI key verifies the HTTPS connection receives a 401; paid inference is not exercised without a visitor’s own credentials.
 
-See [the API contract](docs/api.yaml), [deployment guide](docs/deployment.md), and [third-party notices](THIRD_PARTY_NOTICES.md).
+See [the maintainer handoff](HANDOFF.md), [API contract](docs/api.yaml), [deployment guide](docs/deployment.md), and [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Project layout
 
