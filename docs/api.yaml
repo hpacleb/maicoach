@@ -1,0 +1,246 @@
+openapi: 3.1.0
+info:
+  title: MaiCoach API
+  version: 1.0.0
+  description: Stateless planning for maimai DX International. Score history stays in the browser. No authentication or cross-origin access is required.
+servers:
+  - url: http://127.0.0.1:3107
+paths:
+  /api/health:
+    get:
+      summary: Deployment and provider readiness
+      responses:
+        "200":
+          description: Service is ready; aiConfigured reports credential presence, not provider connectivity.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    status,
+                    region,
+                    version,
+                    charts,
+                    aiConfigured,
+                    catalogUpdatedAt,
+                  ]
+                properties:
+                  status: { const: ok }
+                  region: { const: intl }
+                  version: { type: string }
+                  charts: { type: integer }
+                  aiConfigured: { type: boolean }
+                  catalogUpdatedAt: { type: string }
+  /api/catalog:
+    get:
+      summary: International-only catalog snapshot, including source provenance
+      responses:
+        "200":
+          description: Catalog; Cache-Control public max-age=3600
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    region,
+                    currentVersion,
+                    updatedAt,
+                    fetchedAt,
+                    source,
+                    sourceCommit,
+                    sha256,
+                    charts,
+                    songCount,
+                  ]
+                properties:
+                  region: { const: intl }
+                  currentVersion: { type: string }
+                  updatedAt: { type: string }
+                  fetchedAt: { type: string }
+                  source: { type: string, format: uri }
+                  sourceCommit: { type: string }
+                  sha256: { type: string }
+                  songCount: { type: integer }
+                  charts:
+                    type: array
+                    items: { $ref: "#/components/schemas/Chart" }
+  /api/plan:
+    post:
+      summary: Calculate a deterministic session with sequential B50 projections
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanInput" }
+      responses:
+        "200":
+          description: Practice session; at most three tracks per credit, with no duplicate chart IDs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PracticePlan" }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "429": { $ref: "#/components/responses/RateLimit" }
+  /api/coach:
+    post:
+      summary: Retrieve exercises and optionally explain the plan through LangChain
+      description: Without credentials or on provider failure, returns mode=planner and clearly labels the fallback. With credentials, mode=ai uses structured output. Provider failures never expose upstream error objects.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/PlanInput"
+                - type: object
+                  properties:
+                    question: { type: string, maxLength: 600 }
+      responses:
+        "200":
+          description: Grounded advice plus selected exercise sources
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mode, advice, sources]
+                properties:
+                  mode: { enum: [ai, planner] }
+                  advice:
+                    type: object
+                    required: [summary, tips, answer]
+                    properties:
+                      summary: { type: string }
+                      tips: { type: array, items: { type: string } }
+                      answer: { type: string }
+                  sources:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, text]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        text: { type: string }
+                  notice: { type: string }
+        "400": { $ref: "#/components/responses/Invalid" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "429": { $ref: "#/components/responses/RateLimit" }
+components:
+  responses:
+    Invalid:
+      description: Malformed JSON, invalid settings, invalid achievement, or an unknown international chart ID
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooLarge:
+      description: Body exceeds 2 MB
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimit:
+      description: Rate or AI capacity limit exceeded; retry later
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        details: { type: array, items: { type: string } }
+    Score:
+      type: object
+      required: [chartId, achievement]
+      properties:
+        chartId: { type: string, maxLength: 40 }
+        achievement:
+          { type: number, minimum: 0, maximum: 101, multipleOf: 0.0001 }
+        combo: { enum: [none, fc, fcp, ap, app], default: none }
+    Settings:
+      type: object
+      required: [credits, goal, focus, minLevel, maxLevel]
+      properties:
+        credits: { type: integer, minimum: 1, maximum: 12 }
+        goal: { enum: [rating, consistency, discovery] }
+        focus: { enum: [balanced, slides, breaks, timing] }
+        minLevel: { type: number, minimum: 1, maximum: 15 }
+        maxLevel: { type: number, minimum: 1, maximum: 15 }
+    PlanInput:
+      type: object
+      required: [scores, settings]
+      properties:
+        scores:
+          {
+            type: array,
+            maxItems: 10000,
+            items: { $ref: "#/components/schemas/Score" },
+          }
+        settings: { $ref: "#/components/schemas/Settings" }
+    Chart:
+      type: object
+      required:
+        [
+          id,
+          songId,
+          title,
+          artist,
+          category,
+          type,
+          difficulty,
+          level,
+          constant,
+          version,
+          bucket,
+          notes,
+          url,
+        ]
+      properties:
+        id: { type: string }
+        songId: { type: string }
+        title: { type: string }
+        artist: { type: string }
+        category: { type: string }
+        type: { enum: [dx, std] }
+        difficulty: { enum: [basic, advanced, expert, master, remaster] }
+        level: { type: string }
+        constant: { type: number, exclusiveMinimum: 0, maximum: 15 }
+        version: { type: string }
+        bucket: { enum: [old, new] }
+        bpm: { type: number }
+        notes:
+          type: object
+          properties:
+            tap: { type: integer }
+            hold: { type: integer }
+            slide: { type: integer }
+            touch: { type: integer }
+            break: { type: integer }
+            total: { type: integer }
+        url: { type: string, format: uri }
+    PracticePlan:
+      type: object
+      required:
+        [slots, totalBefore, totalAfter, recordedCount, settings, notices]
+      properties:
+        slots:
+          type: array
+          maxItems: 36
+          items:
+            type: object
+            required: [chart, phase, target, current, gain, reason, drillId]
+            properties:
+              chart: { $ref: "#/components/schemas/Chart" }
+              phase: { enum: [warmup, push, explore] }
+              target: { type: number }
+              current: { type: [number, "null"] }
+              gain: { type: integer, minimum: 0 }
+              reason: { type: string }
+              drillId: { type: string }
+        totalBefore: { type: integer }
+        totalAfter: { type: integer }
+        recordedCount: { type: integer, minimum: 0, maximum: 50 }
+        settings: { $ref: "#/components/schemas/Settings" }
+        notices: { type: array, items: { type: string } }

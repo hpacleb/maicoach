@@ -1,0 +1,28 @@
+[Unit]
+Description=MaiCoach practice companion
+After=network.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/var/www/maicoach/current
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=128
+EnvironmentFile=-/etc/maicoach.env
+ExecStart=/usr/local/bin/node dist/server/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+MemoryHigh=160M
+MemoryMax=192M
+CPUQuota=50%
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
