@@ -29,3 +29,5 @@ The rating coefficient table and behavior in `shared/rating.ts` are adapted from
 > SOFTWARE.
 
 Runtime and development dependency licenses are distributed with their respective npm packages.
+
+The self-hosted Nunito variable font is from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/nunito), distributed under the SIL Open Font License 1.1. Its complete copyright and license notice is included in [public/fonts/Nunito-OFL.txt](public/fonts/Nunito-OFL.txt).
