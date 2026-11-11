@@ -1,5 +1,7 @@
 # MaiCoach
 
+[![CI](https://github.com/hpacleb/maicoach/actions/workflows/ci.yml/badge.svg)](https://github.com/hpacleb/maicoach/actions/workflows/ci.yml)
+
 **Make every credit count.** A personal practice companion for maimai DX International, built by Harvey Pacleb with React, TypeScript, and LangChain.
 
 MaiCoach turns recorded scores and a credit budget into a session of warmups, focused achievement targets, and discovery charts. The planner owns the numbers. Optional AI explains the session using a small, traceable exercise library.
