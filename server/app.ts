@@ -22,11 +22,11 @@ export function createApp(
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
+          scriptSrc: ["'self'", "https://static.cloudflareinsights.com"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:"],
           fontSrc: ["'self'"],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", "https://cloudflareinsights.com"],
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"],
           upgradeInsecureRequests: null,
