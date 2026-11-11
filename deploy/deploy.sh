@@ -29,14 +29,18 @@ old_release="$(readlink -f /var/www/maicoach/current || true)"
 ln -s "$release_path" /var/www/maicoach/current.next
 mv -Tf /var/www/maicoach/current.next /var/www/maicoach/current
 install -m 644 deploy/maicoach.service /etc/systemd/system/maicoach.service
+install -m 644 deploy/cloudflare-realip.conf /etc/nginx/snippets/maicoach-cloudflare-realip.conf
 # Never overwrite a host that certbot may already have configured.
 if [ ! -e /etc/nginx/sites-available/maicoach.harveypacleb.com ]; then
   install -m 644 deploy/nginx.conf /etc/nginx/sites-available/maicoach.harveypacleb.com
   ln -s /etc/nginx/sites-available/maicoach.harveypacleb.com /etc/nginx/sites-enabled/maicoach.harveypacleb.com
 fi
+if ! grep -qF 'include /etc/nginx/snippets/maicoach-cloudflare-realip.conf;' /etc/nginx/sites-available/maicoach.harveypacleb.com; then
+  sed -i '/server_name maicoach\.harveypacleb\.com;/a\    include /etc/nginx/snippets/maicoach-cloudflare-realip.conf;' /etc/nginx/sites-available/maicoach.harveypacleb.com
+fi
 if [ ! -e /etc/maicoach.env ]; then
   install -m 600 /dev/null /etc/maicoach.env
-  printf '%s\n' 'PORT=3107' 'AI_MODEL=gpt-4o-mini' 'AI_MAX_DAILY=100' > /etc/maicoach.env
+  printf '%s\n' 'PORT=3107' > /etc/maicoach.env
 fi
 systemctl daemon-reload
 systemctl enable maicoach
@@ -60,8 +64,12 @@ fi
 nginx -t
 systemctl reload nginx
 host_ready=false
+host_curl=(curl --fail --silent --max-time 5 -H 'Host: maicoach.harveypacleb.com' http://127.0.0.1/api/health)
+if [ -f /etc/letsencrypt/live/maicoach.harveypacleb.com/fullchain.pem ]; then
+  host_curl=(curl --fail --silent --max-time 5 --resolve maicoach.harveypacleb.com:443:127.0.0.1 https://maicoach.harveypacleb.com/api/health)
+fi
 for attempt in {1..20}; do
-  host_health="$(curl --fail --silent --max-time 5 -H 'Host: maicoach.harveypacleb.com' http://127.0.0.1/api/health || true)"
+  host_health="$("${host_curl[@]}" || true)"
   case "$host_health" in
     *'"status":"ok"'*) host_ready=true; break ;;
   esac

@@ -21,7 +21,7 @@ test("API contract: health, catalog, valid plan, malformed requests and truthful
     assert.equal(health.headers.get("x-content-type-options"), "nosniff");
     const status = await health.json();
     assert.equal(status.region, "intl");
-    assert.equal(status.aiConfigured, false);
+    assert.equal(status.aiMode, "byok");
     const library = await (await fetch(base + "/api/catalog")).json();
     assert.ok(library.charts.length > 6000);
     const valid = await post("/api/plan", {

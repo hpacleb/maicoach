@@ -29,6 +29,7 @@ import {
   WandSparkles,
   X,
   Zap,
+  KeyRound,
 } from "lucide-react";
 import type {
   Catalog,
@@ -37,11 +38,13 @@ import type {
   PracticePlan,
   Score,
   Settings,
+  ProviderConfig,
 } from "../shared/types";
 import { DEFAULT_SETTINGS } from "../shared/types";
 import { best50, rank, rating } from "../shared/rating";
 import { createPlan } from "../shared/planner";
 import { scoreSchema, settingsSchema } from "../shared/validation";
+import ProviderSettings from "./ProviderSettings";
 import {
   downloadJson,
   importScores,
@@ -117,7 +120,9 @@ async function request<T>(url: string, body?: unknown): Promise<T> {
 export default function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [aiConfigured, setAiConfigured] = useState(false);
+  const [provider, setProvider] = useState<ProviderConfig | null>(null);
+  const [showProvider, setShowProvider] = useState(false);
+  const aiConfigured = Boolean(provider);
   const [view, setView] = useState<View>("overview");
   const [mobile, setMobile] = useState(false);
   const [userScores, setUserScores] = useState<Score[]>([]);
@@ -128,6 +133,7 @@ export default function App() {
   const [advice, setAdvice] = useState<CoachResponse | null>(null);
   const [coaching, setCoaching] = useState(false);
   const [question, setQuestion] = useState("");
+  const coachTicket = useRef(0);
   const [toast, setToast] = useState("");
   const [search, setSearch] = useState("");
   const [difficulty, setDifficulty] = useState("all");
@@ -162,9 +168,6 @@ export default function App() {
           "The international catalog could not be loaded. Please reload to try again.",
         ),
       );
-    request<{ aiConfigured: boolean }>("/api/health")
-      .then((v) => setAiConfigured(v.aiConfigured))
-      .catch(() => {});
   }, []);
   useEffect(() => {
     if (!toast) return;
@@ -354,19 +357,20 @@ export default function App() {
   async function askCoach(event?: React.FormEvent) {
     event?.preventDefault();
     if (!displayedPlan) return;
+    const ticket = ++coachTicket.current;
     setCoaching(true);
     try {
-      setAdvice(
-        await request<CoachResponse>("/api/coach", {
-          scores: activeScores,
-          settings: displayedPlan.settings,
-          question: question.trim() || "Explain how to approach this session.",
-        }),
-      );
+      const result = await request<CoachResponse>("/api/coach", {
+        scores: activeScores,
+        settings: displayedPlan.settings,
+        question: question.trim() || "Explain how to approach this session.",
+        ...(provider ? { provider } : {}),
+      });
+      if (ticket === coachTicket.current) setAdvice(result);
     } catch (err) {
-      setToast((err as Error).message);
+      if (ticket === coachTicket.current) setToast((err as Error).message);
     } finally {
-      setCoaching(false);
+      if (ticket === coachTicket.current) setCoaching(false);
     }
   }
   const isStale =
@@ -500,6 +504,15 @@ export default function App() {
             <strong>{names[view]}</strong>
           </div>
           <div className="topbar-right">
+            <button
+              className="provider-settings-button"
+              aria-label="AI settings"
+              onClick={() => setShowProvider(true)}
+            >
+              <KeyRound size={14} />
+              <span>AI settings</span>
+              {provider && <i />}
+            </button>
             <span className="region">
               <Globe2 size={14} /> INTERNATIONAL <i />
             </span>
@@ -749,8 +762,8 @@ export default function App() {
                   <div className="mode-note">
                     <i />
                     {aiConfigured
-                      ? "Live AI coaching available"
-                      : "Exercise-library guidance · AI optional"}
+                      ? "AI key added for this tab"
+                      : "Bring your own key for AI coaching"}
                   </div>
                 </section>
               </div>
@@ -1050,12 +1063,28 @@ export default function App() {
                     <p>
                       {aiConfigured
                         ? "Grounded AI coaching, using your plan and a curated exercise library."
-                        : "Exercise-library guidance is available. Live AI will appear when the owner configures a provider."}
+                        : "Add your own key and a provider endpoint to unlock AI coaching. Exercise-library guidance works without a key."}
                     </p>
                   </div>
                   <span className="label-pill">
                     {advice?.mode === "ai" ? "LIVE AI" : "PRACTICE COACH"}
                   </span>
+                </div>
+                <div className="provider-inline">
+                  <span>
+                    {provider
+                      ? `Using ${provider.model} · ${new URL(provider.baseUrl).hostname}`
+                      : "OpenAI or your own compatible provider"}
+                  </span>
+                  <button
+                    className="text-button"
+                    onClick={() => setShowProvider(true)}
+                  >
+                    <KeyRound size={13} />
+                    {provider
+                      ? "Change provider / forget key"
+                      : "Add your API key"}
+                  </button>
                 </div>
                 {advice ? (
                   <div className="advice-body">
@@ -1112,9 +1141,10 @@ export default function App() {
                   </button>
                 </form>
                 <p className="privacy-line">
-                  Scores are sent to the server to plan. When live AI is
-                  enabled, selected plan details and your question go to the AI
-                  provider. We don’t store them on the server.
+                  Scores are sent to the server to plan. AI requests also relay
+                  your key, selected plan details, and question to your chosen
+                  provider over HTTPS. Keys stay in tab memory and are never
+                  saved in score exports or browser storage.
                 </p>
               </section>
             </>
@@ -1578,8 +1608,8 @@ export default function App() {
                   <h2>Grounded coaching.</h2>
                   <p>
                     {aiConfigured
-                      ? "Live AI is configured."
-                      : "Live AI is not configured on this deployment."}{" "}
+                      ? "Your provider key is ready for this tab."
+                      : "Bring your own key to enable AI coaching."}{" "}
                     The planner and exercise library work without a model.
                     Optional LangChain coaching explains a computed session
                     using retrieved exercise notes and structured output.
@@ -1592,7 +1622,7 @@ export default function App() {
                   <div className="mode-note">
                     <i />
                     {aiConfigured
-                      ? "AI available"
+                      ? "AI key added for this tab"
                       : "Planner + exercise-library mode"}
                   </div>
                 </section>
@@ -1608,8 +1638,11 @@ export default function App() {
                   <p>
                     Session planning sends scores to the server for calculation.
                     Live coaching sends selected plan details and your question
-                    to the configured AI provider. MaiCoach does not persist
-                    these requests. Hosting access logs may contain IP
+                    to your chosen AI provider, along with your key. The key
+                    stays in this tab’s memory and is relayed only for coaching
+                    requests. MaiCoach does not persist keys or request
+                    contents. Provider settings remember only the endpoint,
+                    model, and output mode. Hosting access logs may contain IP
                     addresses.
                   </p>
                   <p>
@@ -1658,6 +1691,24 @@ export default function App() {
           </footer>
         </main>
       </div>
+      {showProvider && (
+        <ProviderSettings
+          provider={provider}
+          onClose={() => setShowProvider(false)}
+          onApply={(value) => {
+            coachTicket.current++;
+            setCoaching(false);
+            setProvider(value);
+            setShowProvider(false);
+            setAdvice(null);
+            setToast(
+              value
+                ? "Provider ready for this tab. Ask the coach to make a request."
+                : "Key forgotten. Exercise-library guidance is still available.",
+            );
+          }}
+        />
+      )}
       <input
         ref={fileRef}
         type="file"

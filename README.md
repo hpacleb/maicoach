@@ -8,7 +8,7 @@ MaiCoach turns recorded scores and a credit budget into a session of warmups, fo
 
 ## Try it
 
-The intended deployment is **https://maicoach.harveypacleb.com**. DNS and a host-specific certificate must be configured before that URL is available.
+Live at **https://maicoach.harveypacleb.com**, with HTTPS and automatic certificate renewal.
 
 No account is needed. The default demo uses real international charts with clearly labeled synthetic scores. Switch to **Start my profile** to record your own results. Demo scores never overwrite your personal profile.
 
@@ -43,9 +43,15 @@ Vite proxies `/api` to the local Node service. A catalog snapshot is checked in,
 
 ## Enable AI coaching
 
-Copy `.env.example` to `.env` locally. Set `OPENAI_API_KEY` privately and select an available model with `AI_MODEL`. The default is `gpt-4o-mini`. Never commit credentials. For the VPS, edit the root-only `/etc/maicoach.env` and restart `maicoach.service`.
+Open **AI settings** in the header or **Add your API key** in the session planner. Choose OpenAI or a custom OpenAI-compatible provider, enter the API base URL, model ID, and key, then select **Use for this tab**. The default OpenAI model suggestion is `gpt-4o-mini`; use a model available to your account.
 
-`AI_BASE_URL` optionally selects an OpenAI-compatible provider supporting strict JSON-schema output. Provider compatibility and a live model call must be checked after configuring credentials. Without them, the initial deployment intentionally stays in planner mode; a paid live-model call was not verified during initial setup.
+Keys stay in React memory for the current tab. Reloading, closing the tab, or choosing **Forget key** clears them from the app. Browser storage remembers only the endpoint, model, and output mode. Score/session exports never include credentials. Changing the endpoint clears the key field to avoid accidentally sending a key to a different provider.
+
+The visitor's key is sent over HTTPS to MaiCoach's stateless relay only when coaching is requested, then used only with the selected endpoint. Keys, prompts, and upstream error objects are not persisted or logged by the application. No server API key or restart is required. Visitors pay their provider's usage charges.
+
+**Standard chat** is the default compatibility mode: it calls `/chat/completions`, asks for JSON, and validates the result. It does not require `response_format`, tool calls, or the Responses API. **Strict JSON schema** is optional for providers/models that support it. The implementation follows [LangChain's custom-base-URL integration](https://docs.langchain.com/oss/javascript/integrations/chat/openai) and [OpenAI's structured-output interface](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Custom providers must expose a public HTTPS endpoint on port 443. The relay rejects URL credentials/query parameters, loopback/private/link-local/reserved addresses, and mixed public/private DNS responses. It pins each fresh TLS connection to a checked address and does not follow redirects. Local Ollama/LM Studio endpoints are not reachable through this hosted relay. API base URLs typically end in `/v1`; a pasted `/chat/completions` suffix is normalized automatically.
 
 The AI path is intentionally bounded:
 
@@ -58,7 +64,7 @@ The AI path is intentionally bounded:
 
 The model cannot change rating data or write scores. Scores and note counts cannot diagnose specific technique weaknesses. Prompt instructions and structured output reduce errors but cannot guarantee factual prose; check answers against the displayed sources.
 
-AI requests have a per-IP limit of 10/hour, a concurrency cap of two, a 25-second provider timeout, and a default process-local budget of 100 attempted calls per UTC day. The budget resets on service restart. Set provider-side spending controls if enabling public paid inference. Request contents and upstream errors are not logged by the application. If using Cloudflare proxying, see the real-IP note in [deployment documentation](docs/deployment.md).
+AI requests have a per-IP limit of 10/hour, a concurrency cap of two, a five-second DNS deadline, a 25-second provider timeout, and bounded request/response sizes. There is no shared paid-inference budget because all AI calls use visitor-supplied keys. If using Cloudflare proxying, see the real-IP note in [deployment documentation](docs/deployment.md).
 
 ## Data and rating provenance
 
@@ -97,7 +103,7 @@ Use an exported MaiCoach file or an array in this format:
 
 Get a real chart ID from an export or the app's downloadable example. Achievement must be 0–101 with at most four decimal places. Bad JSON, another region, oversized files, and unknown international chart IDs reject the entire import. Existing profile results are merged by highest chart rating, with achievement as a tiebreaker. Native MaiCoach JSON is supported; arbitrary B50 screenshots and third-party export formats are not parsed in this version.
 
-Scores stay in `localStorage`. Export before clearing browser data or moving devices. Planning sends scores to the stateless server; live AI additionally sends selected plan details and the player's question to the provider. There is no server-side score database.
+Scores stay in `localStorage`. Export before clearing browser data or moving devices. Planning sends scores to the stateless server; live AI additionally relays the visitor’s in-memory key, selected plan details, and question to their chosen provider. There is no server-side score database.
 
 ## Verification
 
@@ -109,7 +115,7 @@ npm run test:e2e          # Desktop/mobile journeys and screenshots
 npm audit
 ```
 
-Tests cover B35/B15 limits, AP and boundary values, international overrides, Japan-only exclusion, exact sequential gain projections, malformed inputs, profile isolation, persistence, import failure, search, responsive layout, and truthful fallback mode. CI runs these checks on pushes and pull requests. The live paid-provider path needs configured credentials and a provider smoke test.
+Tests cover B35/B15 limits, AP and boundary values, international overrides, Japan-only exclusion, exact sequential gain projections, malformed inputs, profile isolation, persistence, import failure, search, responsive layout, and truthful fallback mode. CI runs these checks on pushes and pull requests. BYOK tests run the real LangChain integration against deterministic SDK transport fixtures for standard and strict output, key/endpoint isolation, error redaction, and fallback. Browser tests verify custom settings, key forgetting, and exclusion from storage/exports. A live transport check with an intentionally invalid OpenAI key verifies the HTTPS connection receives a 401; paid inference is not exercised without a visitor’s own credentials.
 
 See [the API contract](docs/api.yaml), [deployment guide](docs/deployment.md), and [third-party notices](THIRD_PARTY_NOTICES.md).
 

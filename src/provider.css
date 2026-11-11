@@ -1,0 +1,104 @@
+.provider-settings-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  padding: 8px 10px;
+  border: 1px solid #3e4e32;
+  border-radius: 5px;
+  color: #bfd6a9;
+  white-space: nowrap;
+}
+.provider-settings-button:hover {
+  background: #26351f;
+  color: var(--lime);
+}
+.provider-settings-button i {
+  width: 4px;
+  height: 4px;
+  background: var(--lime);
+  border-radius: 50%;
+}
+.provider-modal {
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.provider-modal h2 {
+  margin-bottom: 12px;
+}
+.provider-intro {
+  font-size: 12px;
+  color: #a0b590;
+  line-height: 1.8;
+}
+.provider-modal .field-label {
+  margin-top: 18px;
+}
+.provider-modal .provider-field-help {
+  font-size: 10px;
+  color: #91a77f;
+  line-height: 1.7;
+  margin-top: 8px;
+}
+.provider-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid #3c4c30;
+  background: #192414;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 20px;
+  color: #a9c196;
+}
+.provider-privacy svg {
+  margin-top: 3px;
+  color: var(--lime);
+}
+.provider-privacy p {
+  font-size: 10px;
+  line-height: 1.8;
+}
+.provider-modal .forget-key {
+  margin-top: 10px;
+}
+.provider-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 0;
+  margin-top: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  color: #8fa77c;
+  overflow-wrap: anywhere;
+}
+.provider-inline > .text-button {
+  color: var(--lime);
+}
+@media (max-width: 520px) {
+  .provider-settings-button span {
+    display: none;
+  }
+  .provider-settings-button {
+    padding: 7px;
+  }
+  .provider-modal {
+    padding: 25px 21px;
+  }
+  .provider-modal .provider-intro {
+    font-size: 11px;
+  }
+  .provider-modal input,
+  .provider-modal select {
+    font-size: 12px;
+    padding: 12px;
+  }
+  .provider-inline {
+    font-size: 9px;
+    line-height: 1.8;
+  }
+}

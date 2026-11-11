@@ -68,6 +68,12 @@ export interface Advice {
   tips: string[];
   answer: string;
 }
+export interface ProviderConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  outputMode: "chat" | "jsonSchema";
+}
 export interface CoachResponse {
   mode: "ai" | "planner";
   advice: Advice;

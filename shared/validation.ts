@@ -28,7 +28,46 @@ export const planInputSchema = z.object({
   scores: scoresSchema,
   settings: settingsSchema,
 });
+export const providerSchema = z.object({
+  apiKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .refine((v) => !/[\r\n]/.test(v)),
+  baseUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .transform((v) =>
+      v.replace(/\/chat\/completions\/?$/, "").replace(/\/+$/, ""),
+    )
+    .refine((v) => {
+      try {
+        const url = new URL(v);
+        return (
+          url.protocol === "https:" &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash &&
+          (url.port === "" || url.port === "443") &&
+          !url.hostname.endsWith(".")
+        );
+      } catch {
+        return false;
+      }
+    }, "Use a public HTTPS API base URL on port 443, without credentials or query parameters."),
+  model: z
+    .string()
+    .trim()
+    .min(1)
+    .max(150)
+    .refine((v) => !/[\r\n]/.test(v)),
+  outputMode: z.enum(["chat", "jsonSchema"]).default("chat"),
+});
 export const coachInputSchema = planInputSchema.extend({
+  provider: providerSchema.optional(),
   question: z
     .string()
     .trim()

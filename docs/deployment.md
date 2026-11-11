@@ -48,22 +48,17 @@ ssh root@ssh.food21services.com \
   'curl -fsS -H "Host: maicoach.harveypacleb.com" http://127.0.0.1/api/health'
 ```
 
-The initial HTTP deployment is not an HTTPS launch. Add provider secrets only through SSH and the root-only environment file. Verify public HTTPS before enabling public paid inference.
+HTTPS is active for the production hostname, with a dedicated Let's Encrypt certificate and automatic renewal. App deployments preserve Certbot's host configuration and check the HTTPS virtual host when the certificate exists.
 
-## Configure live AI privately
+## Bring-your-own-key coaching
 
-On the server, use an editor so the credential is not in shell history:
+AI is configured by each visitor in **AI settings**. No shared provider credential is used on the server. `/etc/maicoach.env` is only needed for ordinary runtime settings such as `PORT`; legacy `OPENAI_API_KEY`, `AI_MODEL`, and `AI_BASE_URL` values are ignored. Never add visitor keys to this file.
 
-```bash
-sudoedit /etc/maicoach.env
-systemctl restart maicoach
-```
+Visitors enter an API key, public HTTPS base URL, and model. The key stays in the current tab’s memory and is relayed only for coaching requests. No credentials are saved in browser storage, exports, the deployment environment, or application request logs. The custom-provider transport blocks private networks, pins public DNS results to fresh TLS connections, verifies certificates, forbids redirects, and bounds response sizes.
 
-Set `OPENAI_API_KEY`, `AI_MODEL`, optionally `AI_BASE_URL`, and `AI_MAX_DAILY`. The service loads the file automatically. Do not put credentials in the checkout, client variables, deployment arguments, or chat.
+`/api/health` reports `aiMode: "byok"`. An authenticated provider request should return `mode: "ai"`; rejected credentials or incompatible responses fall back visibly to library guidance. Standard mode works with Chat Completions providers that do not implement strict structured output. Public production requests carrying provider credentials require HTTPS.
 
-After configuration, check `/api/health` for `aiConfigured: true`, then use **Ask coach** once and verify the response has `mode: ai`. Credential presence alone does not verify provider access or schema compatibility. Provider errors visibly fall back to exercise-library guidance.
-
-The app trusts only the local Nginx proxy, and Nginx replaces forwarded IP headers. With Cloudflare proxying enabled, requests initially share limits by Cloudflare edge IP. To preserve true visitor limits, configure `real_ip_header CF-Connecting-IP` **inside this host**, with `set_real_ip_from` restricted to [Cloudflare's published IP ranges](https://www.cloudflare.com/ips/). Do not trust client-supplied headers from arbitrary sources or alter the other sites' IP handling. The service-wide AI budget and concurrency limits still apply regardless.
+The app trusts only the local Nginx proxy, and Nginx replaces forwarded IP headers. MaiCoach's host includes `/etc/nginx/snippets/maicoach-cloudflare-realip.conf`, which trusts `CF-Connecting-IP` only from [Cloudflare's published IPv4/IPv6 ranges](https://www.cloudflare.com/ips/), verified on 2026-11-11. This keeps per-visitor rate limits useful behind Cloudflare without changing the other sites' IP handling. Refresh the host-scoped ranges if Cloudflare updates them. The service-wide concurrency limit still applies regardless. Usage charges belong to each visitor’s provider account.
 
 ## Verify and monitor
 

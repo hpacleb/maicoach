@@ -11,26 +11,19 @@ paths:
       summary: Deployment and provider readiness
       responses:
         "200":
-          description: Service is ready; aiConfigured reports credential presence, not provider connectivity.
+          description: Service is ready; aiMode=byok indicates visitor-supplied credentials, not provider connectivity.
           content:
             application/json:
               schema:
                 type: object
                 required:
-                  [
-                    status,
-                    region,
-                    version,
-                    charts,
-                    aiConfigured,
-                    catalogUpdatedAt,
-                  ]
+                  [status, region, version, charts, aiMode, catalogUpdatedAt]
                 properties:
                   status: { const: ok }
                   region: { const: intl }
                   version: { type: string }
                   charts: { type: integer }
-                  aiConfigured: { type: boolean }
+                  aiMode: { const: byok }
                   catalogUpdatedAt: { type: string }
   /api/catalog:
     get:
@@ -86,7 +79,7 @@ paths:
   /api/coach:
     post:
       summary: Retrieve exercises and optionally explain the plan through LangChain
-      description: Without credentials or on provider failure, returns mode=planner and clearly labels the fallback. With credentials, mode=ai uses structured output. Provider failures never expose upstream error objects.
+      description: Credentials are supplied per request in provider; there is no shared server key. Without provider or on upstream failure, returns mode=planner. With provider, calls its public HTTPS Chat Completions endpoint and validates output. Private endpoints are rejected. Keys are never returned, persisted, or logged. Production credential-bearing requests require HTTPS.
       requestBody:
         required: true
         content:
@@ -97,6 +90,7 @@ paths:
                 - type: object
                   properties:
                     question: { type: string, maxLength: 600 }
+                    provider: { $ref: "#/components/schemas/Provider" }
       responses:
         "200":
           description: Grounded advice plus selected exercise sources
@@ -145,6 +139,18 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    Provider:
+      type: object
+      required: [apiKey, baseUrl, model]
+      properties:
+        apiKey: { type: string, minLength: 1, maxLength: 4096, writeOnly: true }
+        baseUrl:
+          type: string
+          maxLength: 500
+          format: uri
+          description: Public HTTPS API base URL on port 443. Credentials, queries, fragments, private addresses and redirects are rejected. A trailing /chat/completions is normalized away.
+        model: { type: string, minLength: 1, maxLength: 150 }
+        outputMode: { enum: [chat, jsonSchema], default: chat }
     Error:
       type: object
       required: [error]

@@ -7,8 +7,13 @@ import { createPlan } from "../shared/planner";
 import { planInputSchema, coachInputSchema } from "../shared/validation";
 import type { Catalog } from "../shared/types";
 import { aiAdvice, plannerAdvice } from "./coach";
+import { createProviderFetch, ProviderEndpointError } from "./provider";
 
-export function createApp(catalog: Catalog, serveClient = true) {
+export function createApp(
+  catalog: Catalog,
+  serveClient = true,
+  providerTransport = createProviderFetch,
+) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", "loopback");
@@ -40,7 +45,7 @@ export function createApp(catalog: Catalog, serveClient = true) {
       region: "intl",
       version: catalog.currentVersion,
       charts: catalog.charts.length,
-      aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+      aiMode: "byok",
       catalogUpdatedAt: catalog.updatedAt,
     }),
   );
@@ -72,21 +77,17 @@ export function createApp(catalog: Catalog, serveClient = true) {
   app.post("/api/plan", limiter, (req, res) => {
     const parsed = planInputSchema.safeParse(req.body);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          error: "Invalid scores or session settings.",
-          details: parsed.error.issues.map((i) => i.message),
-        });
+      res.status(400).json({
+        error: "Invalid scores or session settings.",
+        details: parsed.error.issues.map((i) => i.message),
+      });
       return;
     }
     if (!validIds(parsed.data.scores)) {
-      res
-        .status(400)
-        .json({
-          error:
-            "Some chart IDs are not in the international catalog. Refresh the catalog or fix your import.",
-        });
+      res.status(400).json({
+        error:
+          "Some chart IDs are not in the international catalog. Refresh the catalog or fix your import.",
+      });
       return;
     }
     res.json(
@@ -94,8 +95,6 @@ export function createApp(catalog: Catalog, serveClient = true) {
     );
   });
   let active = 0;
-  let dailyCalls = 0;
-  let day = "";
   app.post("/api/coach", aiLimiter, async (req, res) => {
     const parsed = coachInputSchema.safeParse(req.body);
     if (
@@ -110,35 +109,44 @@ export function createApp(catalog: Catalog, serveClient = true) {
       parsed.data.scores,
       parsed.data.settings,
     );
-    if (!process.env.OPENAI_API_KEY) {
+    if (!parsed.data.provider) {
       res.json(plannerAdvice(plan, parsed.data.question));
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
-    if (day !== today) {
-      day = today;
-      dailyCalls = 0;
-    }
-    const maxDaily = Number(process.env.AI_MAX_DAILY || 100);
-    if (active >= 2 || dailyCalls >= maxDaily) {
+    if (process.env.NODE_ENV === "production" && !req.secure) {
       res
-        .status(429)
-        .json({
-          error:
-            "AI coaching is at capacity. The practice planner is still available.",
-        });
+        .status(400)
+        .json({ error: "Use HTTPS before sending a provider key." });
+      return;
+    }
+    if (active >= 2) {
+      res.status(429).json({
+        error:
+          "AI coaching is at capacity. The practice planner is still available.",
+      });
       return;
     }
     active++;
-    dailyCalls++;
     try {
-      res.json(await aiAdvice(plan, parsed.data.question));
-    } catch {
+      const transport = await providerTransport(parsed.data.provider.baseUrl);
+      res.json(
+        await aiAdvice(
+          plan,
+          parsed.data.question,
+          parsed.data.provider,
+          transport,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ProviderEndpointError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       // Never log upstream request objects: they may contain provider credentials and player data.
       res.json({
         ...plannerAdvice(plan, parsed.data.question),
         notice:
-          "The AI provider is unavailable. Showing exercise-library guidance instead.",
+          "The provider could not complete this request. Check your key, model, base URL, and output mode. Showing exercise-library guidance instead.",
       });
     } finally {
       active--;
@@ -163,16 +171,14 @@ export function createApp(catalog: Catalog, serveClient = true) {
       _next: express.NextFunction,
     ) => {
       const status = err.status === 413 ? 413 : err.status === 400 ? 400 : 500;
-      res
-        .status(status)
-        .json({
-          error:
-            status === 413
-              ? "Import is too large."
-              : status === 400
-                ? "Request must contain valid JSON."
-                : "Something went wrong. Please try again.",
-        });
+      res.status(status).json({
+        error:
+          status === 413
+            ? "Import is too large."
+            : status === 400
+              ? "Request must contain valid JSON."
+              : "Something went wrong. Please try again.",
+      });
     },
   );
   return app;
