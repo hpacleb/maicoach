@@ -18,7 +18,14 @@ jobs:
       - run: npm audit --omit=dev
       - run: npm test
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - name: Install Playwright browser
+        run: |
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "Playwright install failed (attempt $attempt); retrying in 20s."
+            sleep 20
+          done
+          exit 1
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
